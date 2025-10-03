@@ -2,26 +2,142 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>私の体操スコアシートアプリ</title>
+    <title>体操スコアシート</title>
     <style>
-        body {
-            font-family: sans-serif;
-            text-align: center;
-            margin-top: 50px;
-            background-color: #f0f0f0;
-        }
-        h1 {
-            color: #333;
-        }
-        p {
-            color: #666;
-        }
+        body { font-family: sans-serif; margin: 2em; }
+        h1, h3, h4 { margin-top: 0; }
+        .container { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2em; }
+        .input-section, .ranking-section { border: 1px solid #ccc; border-radius: 8px; padding: 1.5em; }
+        .input-section { grid-column: 1 / -1; } /* 入力エリアは常に全幅 */
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.9em; }
+        th { background-color: #f2f2f2; }
+        .tabs { margin-bottom: 1em; display: flex; gap: 4px; }
+        .tabs button { padding: 8px 12px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px 4px 0 0; }
+        .tabs button.active { background-color: #fff; border-bottom-color: #fff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .event-selector { margin-bottom: 1em; }
+        /* --- 印刷用スタイル --- */
+@media print {
+    /* 印刷時に不要な要素を非表示にする */
+    body > button, /* ページ直下のボタン（印刷ボタンなど） */
+    .csv-upload-area,
+    .score-input-area,
+    .total-ranking-section .tabs button.active::after, /* タブの矢印 */
+    .event-ranking-section .tabs button.active::after, /* タブの矢印 */
+    td > button, /* テーブル内の編集ボタン */
+    #printBtn {
+        display: none !important;
+    }
+
+    /* 印刷用にレイアウトを調整 */
+    body {
+        font-size: 10pt;
+        color: #000;
+    }
+
+    /* タブコンテンツは全て表示する */
+    .tab-content {
+        display: block !important;
+        border: none;
+        padding: 0;
+        margin-bottom: 2em; /* 各ランキングの間に余白を設ける */
+    }
+
+    /* ページ区切りを調整して見やすくする */
+    .total-ranking-section,
+    .event-ranking-section {
+        page-break-before: always; /* 各セクションの前で改ページ */
+    }
+
+    h2 {
+        page-break-after: avoid; /* 見出しの直後で改ページさせない */
+    }
+
+    table {
+        page-break-inside: avoid; /* テーブルの途中で改ページさせない */
+    }
+}
+
     </style>
 </head>
 <body>
-    <h1>ようこそ！</h1>
-    <p>これは私の「Gymnastics score sheet app」です。</p>
-    <p>これからFirebaseでビルドしていきます！</p>
+
+    <h1>体操スコアシート</h1>
+    <button type="button" id="printBtn">このページを印刷する</button>
+    <div class="input-section">
+        <h3>データ入力</h3>
+        <div style="margin-bottom:1em;">
+            <label>CSVファイルから一括登録: <input type="file" id="csvInput" accept=".csv"></label>
+            <button id="csvUploadBtn">CSV読み込み</button>
+        </div>
+        <hr style="margin: 1.5em 0;">
+        <div style="display:flex; align-items:center; gap:1em;">
+            <label>クラス:
+                <select id="inputClassSelect">
+                    <option value="C">Cクラス</option>
+                    <option value="B">Bクラス</option>
+                    <option value="A">Aクラス</option>
+                </select>
+            </label>
+            <label>組: <select id="inputGroupSelect"></select></label>
+        </div>
+        <div id="inputPlayersArea" style="margin-top:1em;"></div>
+        <button id="inputScoreSubmitBtn" style="margin-top:1em;">点数一括登録</button>
+    </div>
+
+    <div class="container">
+        <!-- クラス別 総合得点ランキング -->
+        <div class="ranking-section">
+            <h3>クラス別 総合得点ランキング</h3>
+            <div class="tabs" id="totalRankTabs">
+                <button data-class="C" class="active">Cクラス</button>
+                <button data-class="B">Bクラス</button>
+                <button data-class="A">Aクラス</button>
+            </div>
+            <div id="totalRankContent_C" class="tab-content active">
+                <table id="classC_playersTable">
+                    <thead><tr><th>順位</th><th>名前</th><th>組</th><th>合計</th><th>編集</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="totalRankContent_B" class="tab-content">
+                <table id="classB_playersTable">
+                    <thead><tr><th>順位</th><th>名前</th><th>組</th><th>合計</th><th>編集</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="totalRankContent_A" class="tab-content">
+                 <table id="classA_playersTable">
+                    <thead><tr><th>順位</th><th>名前</th><th>組</th><th>合計</th><th>編集</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 種目別ランキング -->
+        <div class="ranking-section">
+            <h3>種目別ランキング</h3>
+            <div class="tabs" id="eventRankTabs">
+                <button data-class="C" class="active">Cクラス</button>
+                <button data-class="B">Bクラス</button>
+                <button data-class="A">Aクラス</button>
+            </div>
+            <div class="event-selector">
+                <label>種目:
+                    <select id="eventSelect">
+                        <option value="floor">床</option>
+                        <option value="vault">跳馬</option>
+                        <option value="bars">段違い平行棒</option>
+                        <option value="beam">平均台</option>
+                    </select>
+                </label>
+            </div>
+            <ol id="eventRankingList"></ol>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
